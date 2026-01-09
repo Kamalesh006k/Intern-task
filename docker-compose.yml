@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Database Service
+  db:
+    image: mysql:8.0
+    container_name: primetrade_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: primetrade
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Backend Service
+  backend:
+    build: ./backend
+    container_name: primetrade_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://user:password@db/primetrade
+      SECRET_KEY: ${SECRET_KEY:-supersecretkey}
+      ALLOWED_ORIGINS: http://localhost,http://localhost:3000
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+
+  # Frontend Service
+  frontend:
+    build: ./frontend-intern-task
+    container_name: primetrade_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    environment:
+      VITE_API_URL: http://backend:8000 
+      # Note: Frontend build process needs this, 
+      # BUT typically Vite env vars are needed at BUILD time.
+      # Since we build in Dockerfile, we might need to pass ARGs or run time config.
+      # For a simple Nginx serve, run time config for API URL is tricky without a separate config.js.
+      # We will rely on localhost behavior for demo or standard config. 
+      # Actually, since it's client side, 'backend' hostname won't resolve in browser.
+      # It MUST be the public URL. localhost:8000 is correct for browser access.
+      # So VITE_API_URL=http://localhost:8000 is correct for local docker compose.
+
+volumes:
+  db_data:
